@@ -70,36 +70,35 @@ if("netcdf" IN_LIST FEATURES)
         -DENABLE_NETCDF=ON
     )
 
-    # ecCodes links grib_to_netcdf with the plain target_link_libraries signature
-    # via ecbuild_add_executable(). Keep the same plain signature here, otherwise
-    # CMake errors out when the netcdf feature is enabled.
-    set(_eccodes_netcdf_static_fix_marker "# vcpkg eccodes static netcdf closure fix")
-    file(READ "${SOURCE_PATH}/tools/CMakeLists.txt" _eccodes_tools_cmake)
-    if(NOT _eccodes_tools_cmake MATCHES "${_eccodes_netcdf_static_fix_marker}")
-        file(APPEND "${SOURCE_PATH}/tools/CMakeLists.txt" [==[
+    # ecCodes links grib_to_netcdf against NetCDF::NetCDF_C, but on static builds
+    # that target can miss part of the transitive closure on some triplets.
+    file(APPEND "${SOURCE_PATH}/tools/CMakeLists.txt" [=[
 
-# vcpkg eccodes static netcdf closure fix
 if(TARGET grib_to_netcdf AND NOT BUILD_SHARED_LIBS)
-  set(_eccodes_grib_to_netcdf_extra_libs)
-
   find_package(HDF5 COMPONENTS C HL QUIET)
-  if(HDF5_FOUND AND DEFINED HDF5_LIBRARIES)
-    list(APPEND _eccodes_grib_to_netcdf_extra_libs ${HDF5_LIBRARIES})
-  endif()
-
+  find_package(tinyxml2 CONFIG QUIET)
   find_package(CURL QUIET)
-  if(TARGET CURL::libcurl)
-    list(APPEND _eccodes_grib_to_netcdf_extra_libs CURL::libcurl)
-  elseif(CURL_FOUND AND DEFINED CURL_LIBRARIES)
-    list(APPEND _eccodes_grib_to_netcdf_extra_libs ${CURL_LIBRARIES})
+
+  if(TARGET hdf5::hdf5_hl)
+    target_link_libraries(grib_to_netcdf hdf5::hdf5_hl)
+  endif()
+  if(TARGET HDF5::HDF5)
+    target_link_libraries(grib_to_netcdf HDF5::HDF5)
+  elseif(HDF5_FOUND AND DEFINED HDF5_LIBRARIES)
+    target_link_libraries(grib_to_netcdf ${HDF5_LIBRARIES})
   endif()
 
-  if(_eccodes_grib_to_netcdf_extra_libs)
-    target_link_libraries(grib_to_netcdf ${_eccodes_grib_to_netcdf_extra_libs})
+  if(TARGET tinyxml2::tinyxml2)
+    target_link_libraries(grib_to_netcdf tinyxml2::tinyxml2)
+  endif()
+
+  if(TARGET CURL::libcurl)
+    target_link_libraries(grib_to_netcdf CURL::libcurl)
+  elseif(CURL_FOUND AND DEFINED CURL_LIBRARIES)
+    target_link_libraries(grib_to_netcdf ${CURL_LIBRARIES})
   endif()
 endif()
-]==])
-    endif()
+]=])
 endif()
 
 if("png" IN_LIST FEATURES)

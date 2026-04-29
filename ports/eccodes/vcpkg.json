@@ -33,19 +33,19 @@
     },
     "fortran": {
       "description": "Build the Fortran 90 interface",
-      "supports": "!windows & !android & !arm64"
+      "supports": "!windows & !android"
     },
     "netcdf": {
       "description": "Enable grib_to_netcdf and NetCDF support",
       "dependencies": [
         "curl",
         "hdf5",
-        "netcdf-c"
+        "netcdf-c",
+        "tinyxml2"
       ]
     },
     "openmp-threads": {
-      "description": "Enable OpenMP thread safety support",
-      "supports": "!osx"
+      "description": "Enable OpenMP thread safety support"
     },
     "png": {
       "description": "Enable PNG decoding and encoding support",
