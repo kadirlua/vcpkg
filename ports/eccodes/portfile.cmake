@@ -70,8 +70,9 @@ if("netcdf" IN_LIST FEATURES)
         -DENABLE_NETCDF=ON
     )
 
-    # ecCodes links grib_to_netcdf against NetCDF::NetCDF_C, but on static builds
-    # that target can miss part of the transitive closure on some triplets.
+    # ecCodes links grib_to_netcdf with the plain target_link_libraries signature
+    # via ecbuild_add_executable(). Keep the same plain signature here, otherwise
+    # CMake errors out when the netcdf feature is enabled.
     set(_eccodes_netcdf_static_fix_marker "# vcpkg eccodes static netcdf closure fix")
     file(READ "${SOURCE_PATH}/tools/CMakeLists.txt" _eccodes_tools_cmake)
     if(NOT _eccodes_tools_cmake MATCHES "${_eccodes_netcdf_static_fix_marker}")
@@ -79,16 +80,22 @@ if("netcdf" IN_LIST FEATURES)
 
 # vcpkg eccodes static netcdf closure fix
 if(TARGET grib_to_netcdf AND NOT BUILD_SHARED_LIBS)
+  set(_eccodes_grib_to_netcdf_extra_libs)
+
   find_package(HDF5 COMPONENTS C HL QUIET)
   if(HDF5_FOUND AND DEFINED HDF5_LIBRARIES)
-    target_link_libraries(grib_to_netcdf PRIVATE ${HDF5_LIBRARIES})
+    list(APPEND _eccodes_grib_to_netcdf_extra_libs ${HDF5_LIBRARIES})
   endif()
 
   find_package(CURL QUIET)
   if(TARGET CURL::libcurl)
-    target_link_libraries(grib_to_netcdf PRIVATE CURL::libcurl)
+    list(APPEND _eccodes_grib_to_netcdf_extra_libs CURL::libcurl)
   elseif(CURL_FOUND AND DEFINED CURL_LIBRARIES)
-    target_link_libraries(grib_to_netcdf PRIVATE ${CURL_LIBRARIES})
+    list(APPEND _eccodes_grib_to_netcdf_extra_libs ${CURL_LIBRARIES})
+  endif()
+
+  if(_eccodes_grib_to_netcdf_extra_libs)
+    target_link_libraries(grib_to_netcdf ${_eccodes_grib_to_netcdf_extra_libs})
   endif()
 endif()
 ]==])
@@ -152,6 +159,21 @@ endfunction()
 eccodes_move_tools_from_bin("${CURRENT_PACKAGES_DIR}/bin" "${CURRENT_PACKAGES_DIR}/tools/${PORT}")
 eccodes_move_tools_from_bin("${CURRENT_PACKAGES_DIR}/debug/bin" "${CURRENT_PACKAGES_DIR}/tools/${PORT}/debug")
 
+
+function(eccodes_remove_dir_if_empty dir_path)
+    if(NOT IS_DIRECTORY "${dir_path}")
+        return()
+    endif()
+
+    file(GLOB _dir_entries "${dir_path}/*")
+    if(NOT _dir_entries)
+        file(REMOVE_RECURSE "${dir_path}")
+    endif()
+endfunction()
+
+eccodes_remove_dir_if_empty("${CURRENT_PACKAGES_DIR}/bin")
+eccodes_remove_dir_if_empty("${CURRENT_PACKAGES_DIR}/debug/bin")
+
 file(REMOVE_RECURSE
     "${CURRENT_PACKAGES_DIR}/debug/include"
     "${CURRENT_PACKAGES_DIR}/debug/share"
@@ -202,6 +224,7 @@ set(_eccodes_files_to_scrub
     "${CURRENT_PACKAGES_DIR}/include/eccodes_config.h"
     "${CURRENT_PACKAGES_DIR}/include/eccodes_ecbuild_config.h"
     "${CURRENT_PACKAGES_DIR}/tools/${PORT}/codes_config"
+    "${CURRENT_PACKAGES_DIR}/tools/${PORT}/debug/codes_config"
 )
 
 foreach(_file IN LISTS _eccodes_files_to_scrub)
