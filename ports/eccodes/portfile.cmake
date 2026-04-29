@@ -40,10 +40,6 @@ set(ECCODES_OPTIONS
     -DREPLACE_TPL_ABSOLUTE_PATHS=OFF
     -DENABLE_ECCODES_THREADS=OFF
     -DENABLE_ECCODES_OMP_THREADS=OFF
-    -DCMAKE_DISABLE_FIND_PACKAGE_PNG=ON
-    -DCMAKE_DISABLE_FIND_PACKAGE_NetCDF=ON
-    -DCMAKE_DISABLE_FIND_PACKAGE_libaec=ON
-    -DCMAKE_DISABLE_FIND_PACKAGE_OpenMP=ON
 )
 
 # vcpkg all-features CI can select both thread features together.
@@ -52,7 +48,6 @@ set(ECCODES_OPTIONS
 if("openmp-threads" IN_LIST FEATURES)
     list(APPEND ECCODES_OPTIONS
         -DENABLE_ECCODES_OMP_THREADS=ON
-        -DCMAKE_DISABLE_FIND_PACKAGE_OpenMP=OFF
     )
 elseif("threads" IN_LIST FEATURES)
     list(APPEND ECCODES_OPTIONS
@@ -63,7 +58,6 @@ endif()
 if("aec" IN_LIST FEATURES)
     list(APPEND ECCODES_OPTIONS
         -DENABLE_AEC=ON
-        -DCMAKE_DISABLE_FIND_PACKAGE_libaec=OFF
     )
 endif()
 
@@ -74,36 +68,36 @@ endif()
 if("netcdf" IN_LIST FEATURES)
     list(APPEND ECCODES_OPTIONS
         -DENABLE_NETCDF=ON
-        -DCMAKE_DISABLE_FIND_PACKAGE_NetCDF=OFF
     )
 
-    # ecCodes links grib_to_netcdf against NetCDF::NetCDF_C. On static builds,
-    # that does not always carry the full HDF5/cURL closure on all triplets.
-    # Append a small valid CMake block instead of rewriting one exact upstream line.
-    file(APPEND "${SOURCE_PATH}/tools/CMakeLists.txt" [=[
+    # ecCodes links grib_to_netcdf against NetCDF::NetCDF_C, but on static builds
+    # that target can miss part of the transitive closure on some triplets.
+    set(_eccodes_netcdf_static_fix_marker "# vcpkg eccodes static netcdf closure fix")
+    file(READ "${SOURCE_PATH}/tools/CMakeLists.txt" _eccodes_tools_cmake)
+    if(NOT _eccodes_tools_cmake MATCHES "${_eccodes_netcdf_static_fix_marker}")
+        file(APPEND "${SOURCE_PATH}/tools/CMakeLists.txt" [==[
 
+# vcpkg eccodes static netcdf closure fix
 if(TARGET grib_to_netcdf AND NOT BUILD_SHARED_LIBS)
   find_package(HDF5 COMPONENTS C HL QUIET)
-  if(HDF5_FOUND)
+  if(HDF5_FOUND AND DEFINED HDF5_LIBRARIES)
     target_link_libraries(grib_to_netcdf PRIVATE ${HDF5_LIBRARIES})
   endif()
 
   find_package(CURL QUIET)
-  if(CURL_FOUND)
-    if(TARGET CURL::libcurl)
-      target_link_libraries(grib_to_netcdf PRIVATE CURL::libcurl)
-    elseif(DEFINED CURL_LIBRARIES)
-      target_link_libraries(grib_to_netcdf PRIVATE ${CURL_LIBRARIES})
-    endif()
+  if(TARGET CURL::libcurl)
+    target_link_libraries(grib_to_netcdf PRIVATE CURL::libcurl)
+  elseif(CURL_FOUND AND DEFINED CURL_LIBRARIES)
+    target_link_libraries(grib_to_netcdf PRIVATE ${CURL_LIBRARIES})
   endif()
 endif()
-]=])
+]==])
+    endif()
 endif()
 
 if("png" IN_LIST FEATURES)
     list(APPEND ECCODES_OPTIONS
         -DENABLE_PNG=ON
-        -DCMAKE_DISABLE_FIND_PACKAGE_PNG=OFF
     )
 endif()
 
