@@ -226,6 +226,15 @@ set(_eccodes_files_to_scrub
     "${CURRENT_PACKAGES_DIR}/tools/${PORT}/debug/codes_config"
 )
 
+# Upstream installs both release and debug helper scripts named codes_config.
+# Scrub every installed copy so post-build validation does not find build or
+# package paths if a triplet lays them out slightly differently.
+file(GLOB_RECURSE _eccodes_codes_config_files
+    "${CURRENT_PACKAGES_DIR}/tools/${PORT}/*codes_config"
+)
+list(APPEND _eccodes_files_to_scrub ${_eccodes_codes_config_files})
+list(REMOVE_DUPLICATES _eccodes_files_to_scrub)
+
 foreach(_file IN LISTS _eccodes_files_to_scrub)
     eccodes_scrub_vcpkg_paths("${_file}")
 endforeach()
@@ -240,3 +249,33 @@ file(INSTALL
     DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
     RENAME copyright
 )
+
+# Installing ecCodes definitions/samples can leave empty data directories on
+# Linux (for example definitions/metar/stations). vcpkg rejects empty installed
+# directories, so remove all of them after every install/post-process step.
+function(eccodes_remove_empty_directories root_dir)
+    if(NOT IS_DIRECTORY "${root_dir}")
+        return()
+    endif()
+
+    foreach(_pass RANGE 1 20)
+        file(GLOB_RECURSE _all_entries LIST_DIRECTORIES true "${root_dir}/*")
+        set(_removed_empty_dir FALSE)
+
+        foreach(_entry IN LISTS _all_entries)
+            if(IS_DIRECTORY "${_entry}")
+                file(GLOB _children "${_entry}/*")
+                if(NOT _children)
+                    file(REMOVE_RECURSE "${_entry}")
+                    set(_removed_empty_dir TRUE)
+                endif()
+            endif()
+        endforeach()
+
+        if(NOT _removed_empty_dir)
+            break()
+        endif()
+    endforeach()
+endfunction()
+
+eccodes_remove_empty_directories("${CURRENT_PACKAGES_DIR}")
