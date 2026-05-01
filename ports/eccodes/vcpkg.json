@@ -46,7 +46,7 @@
     },
     "openmp-threads": {
       "description": "Enable OpenMP thread safety support",
-      "supports": "!osx & !android"
+      "supports": "!osx"
     },
     "png": {
       "description": "Enable PNG decoding and encoding support",
