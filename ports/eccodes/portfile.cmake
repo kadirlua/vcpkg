@@ -10,7 +10,7 @@ vcpkg_from_github(
 
 if(VCPKG_HOST_IS_WINDOWS)
     vcpkg_acquire_msys(MSYS_ROOT)
-    set(ENV{PATH} "${MSYS_ROOT}/usr/bin;$ENV{PATH}")
+    vcpkg_add_to_path(PREPEND "${MSYS_ROOT}/usr/bin")
 endif()
 
 vcpkg_find_acquire_program(PERL)
