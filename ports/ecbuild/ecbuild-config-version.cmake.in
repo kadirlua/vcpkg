@@ -3,7 +3,3 @@
 # version is controlled by vcpkg before CMake configure is invoked.
 set(PACKAGE_VERSION "@VERSION@")
 set(PACKAGE_VERSION_COMPATIBLE TRUE)
-
-if(PACKAGE_FIND_VERSION VERSION_EQUAL PACKAGE_VERSION)
-    set(PACKAGE_VERSION_EXACT TRUE)
-endif()
