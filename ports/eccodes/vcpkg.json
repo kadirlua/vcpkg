@@ -43,6 +43,7 @@
           "default-features": false
         },
         "hdf5",
+        "libaec",
         "netcdf-c",
         "tinyxml2"
       ]

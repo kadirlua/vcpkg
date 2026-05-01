@@ -1,20 +1,26 @@
 diff --git a/tools/CMakeLists.txt b/tools/CMakeLists.txt
-index d0eb320..0b1f843 100644
+index d0eb320..91fb01e 100644
 --- a/tools/CMakeLists.txt
 +++ b/tools/CMakeLists.txt
-@@ -75,10 +75,33 @@ ecbuild_add_executable( TARGET     gts_count
+@@ -75,10 +75,56 @@ ecbuild_add_executable( TARGET     gts_count
                          LIBS       ecc_tools )
  
  # grib to netcdf is optional
--ecbuild_add_executable( TARGET     grib_to_netcdf
--                        SOURCES    grib_to_netcdf.cc
--                        CONDITION  HAVE_NETCDF
--                        LIBS       ecc_tools NetCDF::NetCDF_C )
 +set( eccodes_grib_to_netcdf_libs )
++
 +if( HAVE_NETCDF )
 +  find_package( HDF5 COMPONENTS C HL QUIET )
 +  find_package( tinyxml2 CONFIG QUIET )
 +  find_package( CURL QUIET )
++  find_package( libaec CONFIG QUIET )
++
++  if( TARGET libaec::sz )
++    foreach( _eccodes_hdf5_target IN ITEMS hdf5::hdf5 HDF5::HDF5 )
++      if( TARGET ${_eccodes_hdf5_target} )
++        target_link_libraries( ${_eccodes_hdf5_target} INTERFACE libaec::sz )
++      endif()
++    endforeach()
++  endif()
 +
 +  if( TARGET hdf5::hdf5_hl )
 +    list( APPEND eccodes_grib_to_netcdf_libs hdf5::hdf5_hl )
@@ -35,8 +41,22 @@ index d0eb320..0b1f843 100644
 +  elseif( CURL_FOUND AND DEFINED CURL_LIBRARIES )
 +    list( APPEND eccodes_grib_to_netcdf_libs ${CURL_LIBRARIES} )
 +  endif()
++
++  if( TARGET libaec::sz )
++    list( APPEND eccodes_grib_to_netcdf_libs libaec::sz )
++  else()
++    find_library( eccodes_SZIP_LIBRARY NAMES sz szip )
++    if( eccodes_SZIP_LIBRARY )
++      list( APPEND eccodes_grib_to_netcdf_libs ${eccodes_SZIP_LIBRARY} )
++    endif()
++  endif()
 +endif()
-+ecbuild_add_executable( TARGET grib_to_netcdf SOURCES grib_to_netcdf.cc CONDITION HAVE_NETCDF LIBS ecc_tools NetCDF::NetCDF_C ${eccodes_grib_to_netcdf_libs} )
++
+ ecbuild_add_executable( TARGET     grib_to_netcdf
+                         SOURCES    grib_to_netcdf.cc
+                         CONDITION  HAVE_NETCDF
+-                        LIBS       ecc_tools NetCDF::NetCDF_C )
++                        LIBS       ecc_tools NetCDF::NetCDF_C ${eccodes_grib_to_netcdf_libs} )
  
  
  ecbuild_add_executable( TARGET     grib_list_keys
