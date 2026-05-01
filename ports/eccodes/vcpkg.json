@@ -56,7 +56,7 @@
     },
     "threads": {
       "description": "Enable POSIX thread safety support where supported by upstream",
-      "supports": "!windows & !android"
+      "supports": "!windows"
     }
   }
 }
