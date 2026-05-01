@@ -33,7 +33,7 @@
     },
     "fortran": {
       "description": "Build the Fortran 90 interface",
-      "supports": "!windows & !android & !(arm64 & linux)"
+      "supports": "!windows & !(arm64 & linux)"
     },
     "netcdf": {
       "description": "Enable grib_to_netcdf and NetCDF support",
