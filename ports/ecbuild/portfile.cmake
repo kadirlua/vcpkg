@@ -13,12 +13,10 @@ file(COPY
     DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
 )
 
-if(EXISTS "${SOURCE_PATH}/share/ecbuild/check_linker")
-    file(COPY
-        "${SOURCE_PATH}/share/ecbuild/check_linker"
-        DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
-    )
-endif()
+file(COPY
+    "${SOURCE_PATH}/share/ecbuild/check_linker"
+    DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
+)
 
 configure_file(
     "${CMAKE_CURRENT_LIST_DIR}/ecbuild-config.cmake.in"

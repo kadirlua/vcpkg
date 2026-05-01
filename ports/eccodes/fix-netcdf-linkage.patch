@@ -1,0 +1,42 @@
+diff --git a/tools/CMakeLists.txt b/tools/CMakeLists.txt
+index d0eb320..0b1f843 100644
+--- a/tools/CMakeLists.txt
++++ b/tools/CMakeLists.txt
+@@ -75,10 +75,33 @@ ecbuild_add_executable( TARGET     gts_count
+                         LIBS       ecc_tools )
+ 
+ # grib to netcdf is optional
+-ecbuild_add_executable( TARGET     grib_to_netcdf
+-                        SOURCES    grib_to_netcdf.cc
+-                        CONDITION  HAVE_NETCDF
+-                        LIBS       ecc_tools NetCDF::NetCDF_C )
++set( eccodes_grib_to_netcdf_libs )
++if( HAVE_NETCDF )
++  find_package( HDF5 COMPONENTS C HL QUIET )
++  find_package( tinyxml2 CONFIG QUIET )
++  find_package( CURL QUIET )
++
++  if( TARGET hdf5::hdf5_hl )
++    list( APPEND eccodes_grib_to_netcdf_libs hdf5::hdf5_hl )
++  endif()
++
++  if( TARGET HDF5::HDF5 )
++    list( APPEND eccodes_grib_to_netcdf_libs HDF5::HDF5 )
++  elseif( HDF5_FOUND AND DEFINED HDF5_LIBRARIES )
++    list( APPEND eccodes_grib_to_netcdf_libs ${HDF5_LIBRARIES} )
++  endif()
++
++  if( TARGET tinyxml2::tinyxml2 )
++    list( APPEND eccodes_grib_to_netcdf_libs tinyxml2::tinyxml2 )
++  endif()
++
++  if( TARGET CURL::libcurl )
++    list( APPEND eccodes_grib_to_netcdf_libs CURL::libcurl )
++  elseif( CURL_FOUND AND DEFINED CURL_LIBRARIES )
++    list( APPEND eccodes_grib_to_netcdf_libs ${CURL_LIBRARIES} )
++  endif()
++endif()
++ecbuild_add_executable( TARGET grib_to_netcdf SOURCES grib_to_netcdf.cc CONDITION HAVE_NETCDF LIBS ecc_tools NetCDF::NetCDF_C ${eccodes_grib_to_netcdf_libs} )
+ 
+ 
+ ecbuild_add_executable( TARGET     grib_list_keys

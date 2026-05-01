@@ -1,4 +1,4 @@
-ecccodes provides CMake integration:
+ecCodes provides CMake integration:
 
-  find_package(eccodes CONFIG REQUIRED)
-  target_link_libraries(main PRIVATE eccodes)
+    find_package(eccodes CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE eccodes)

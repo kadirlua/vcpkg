@@ -5,7 +5,7 @@ vcpkg_from_github(
     SHA512 14b75d100fbf4ee68b62406051b49b341567a346477f36c88a7fa59e5f1b7d5b0886d82c222ebe8b66809dcdb4a3bebe96da418694ac759e5c18ad904467624c
     HEAD_REF develop
     PATCHES
-        use-system-ecbuild.patch
+        fix-netcdf-linkage.patch
 )
 
 if(VCPKG_HOST_IS_WINDOWS)
@@ -14,18 +14,30 @@ if(VCPKG_HOST_IS_WINDOWS)
 endif()
 
 vcpkg_find_acquire_program(PERL)
-get_filename_component(PERL_PATH "${PERL}" DIRECTORY)
-vcpkg_add_to_path("${PERL_PATH}")
-
 vcpkg_find_acquire_program(PYTHON3)
 get_filename_component(PYTHON3_PATH "${PYTHON3}" DIRECTORY)
 get_filename_component(PYTHON3_ROOT "${PYTHON3_PATH}" DIRECTORY)
-vcpkg_add_to_path("${PYTHON3_PATH}")
+
+vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
+    FEATURES
+        aec ENABLE_AEC
+        fortran ENABLE_FORTRAN
+        netcdf ENABLE_NETCDF
+        png ENABLE_PNG
+)
+
+if(VCPKG_TARGET_IS_WINDOWS)
+    set(ECCODES_ENABLE_THREADS OFF)
+else()
+    set(ECCODES_ENABLE_THREADS ON)
+endif()
 
 set(ECCODES_OPTIONS
+    ${FEATURE_OPTIONS}
     -DBUILD_TESTING=OFF
     -DCMAKE_DISABLE_FIND_PACKAGE_Git=ON
     -DCMAKE_DISABLE_FIND_PACKAGE_Jasper=ON
+    -DCMAKE_DISABLE_FIND_PACKAGE_OpenMP=ON
     -DENABLE_MEMFS=ON
     -DENABLE_INSTALL_ECCODES_DEFINITIONS=ON
     -DENABLE_INSTALL_ECCODES_SAMPLES=ON
@@ -33,78 +45,21 @@ set(ECCODES_OPTIONS
     -DENABLE_JPG=ON
     -DENABLE_JPG_LIBJASPER=OFF
     -DENABLE_JPG_LIBOPENJPEG=ON
-    -DENABLE_AEC=OFF
-    -DENABLE_FORTRAN=OFF
-    -DENABLE_NETCDF=OFF
-    -DENABLE_PNG=OFF
     -DREPLACE_TPL_ABSOLUTE_PATHS=OFF
-    -DENABLE_ECCODES_THREADS=OFF
+    -DENABLE_ECCODES_THREADS=${ECCODES_ENABLE_THREADS}
     -DENABLE_ECCODES_OMP_THREADS=OFF
 )
 
-# vcpkg all-features CI can select both thread features together.
-# ecCodes treats them as alternative implementations, so prefer OpenMP when
-# both are requested instead of hard-failing configuration.
-if("openmp-threads" IN_LIST FEATURES)
-    list(APPEND ECCODES_OPTIONS
-        -DENABLE_ECCODES_OMP_THREADS=ON
-    )
-elseif("threads" IN_LIST FEATURES)
-    list(APPEND ECCODES_OPTIONS
-        -DENABLE_ECCODES_THREADS=ON
-    )
+if(NOT "aec" IN_LIST FEATURES)
+    list(APPEND ECCODES_OPTIONS -DCMAKE_DISABLE_FIND_PACKAGE_libaec=ON)
 endif()
 
-if("aec" IN_LIST FEATURES)
-    list(APPEND ECCODES_OPTIONS
-        -DENABLE_AEC=ON
-    )
+if(NOT "netcdf" IN_LIST FEATURES)
+    list(APPEND ECCODES_OPTIONS -DCMAKE_DISABLE_FIND_PACKAGE_NetCDF=ON)
 endif()
 
-if("fortran" IN_LIST FEATURES)
-    list(APPEND ECCODES_OPTIONS -DENABLE_FORTRAN=ON)
-endif()
-
-if("netcdf" IN_LIST FEATURES)
-    list(APPEND ECCODES_OPTIONS
-        -DENABLE_NETCDF=ON
-    )
-
-    # ecCodes links grib_to_netcdf against NetCDF::NetCDF_C, but on static builds
-    # that target can miss part of the transitive closure on some triplets.
-    file(APPEND "${SOURCE_PATH}/tools/CMakeLists.txt" [=[
-
-if(TARGET grib_to_netcdf AND NOT BUILD_SHARED_LIBS)
-  find_package(HDF5 COMPONENTS C HL QUIET)
-  find_package(tinyxml2 CONFIG QUIET)
-  find_package(CURL QUIET)
-
-  if(TARGET hdf5::hdf5_hl)
-    target_link_libraries(grib_to_netcdf hdf5::hdf5_hl)
-  endif()
-  if(TARGET HDF5::HDF5)
-    target_link_libraries(grib_to_netcdf HDF5::HDF5)
-  elseif(HDF5_FOUND AND DEFINED HDF5_LIBRARIES)
-    target_link_libraries(grib_to_netcdf ${HDF5_LIBRARIES})
-  endif()
-
-  if(TARGET tinyxml2::tinyxml2)
-    target_link_libraries(grib_to_netcdf tinyxml2::tinyxml2)
-  endif()
-
-  if(TARGET CURL::libcurl)
-    target_link_libraries(grib_to_netcdf CURL::libcurl)
-  elseif(CURL_FOUND AND DEFINED CURL_LIBRARIES)
-    target_link_libraries(grib_to_netcdf ${CURL_LIBRARIES})
-  endif()
-endif()
-]=])
-endif()
-
-if("png" IN_LIST FEATURES)
-    list(APPEND ECCODES_OPTIONS
-        -DENABLE_PNG=ON
-    )
+if(NOT "png" IN_LIST FEATURES)
+    list(APPEND ECCODES_OPTIONS -DCMAKE_DISABLE_FIND_PACKAGE_PNG=ON)
 endif()
 
 # ecCodes uses try_run() for IEEE endianness probes. Those cannot execute when
@@ -120,7 +75,8 @@ vcpkg_cmake_configure(
     SOURCE_PATH "${SOURCE_PATH}"
     OPTIONS
         ${ECCODES_OPTIONS}
-        -Decbuild_DIR=${CURRENT_HOST_INSTALLED_DIR}/share/ecbuild
+        -DCMAKE_REQUIRE_FIND_PACKAGE_ecbuild=ON
+        -Decbuild_ROOT=${CURRENT_HOST_INSTALLED_DIR}
         -DPERL_EXECUTABLE=${PERL}
         -DPYTHON_EXECUTABLE=${PYTHON3}
         -DPython_EXECUTABLE=${PYTHON3}
@@ -134,30 +90,72 @@ vcpkg_cmake_install()
 vcpkg_cmake_config_fixup(CONFIG_PATH lib/cmake/eccodes)
 vcpkg_fixup_pkgconfig()
 
-function(eccodes_move_tools_from_bin bin_dir tools_dir)
-    if(NOT EXISTS "${bin_dir}")
-        return()
+set(_eccodes_tool_names
+    codes_bufr_filter
+    codes_count
+    codes_export_resource
+    codes_info
+    codes_parser
+    codes_split_file
+    bufr_compare
+    bufr_copy
+    bufr_count
+    bufr_dump
+    bufr_get
+    bufr_index_build
+    bufr_ls
+    bufr_set
+    grib2ppm
+    grib_compare
+    grib_copy
+    grib_count
+    grib_dump
+    grib_filter
+    grib_get
+    grib_get_data
+    grib_histogram
+    grib_index_build
+    grib_ls
+    grib_set
+    gts_compare
+    gts_copy
+    gts_count
+    gts_dump
+    gts_filter
+    gts_get
+    gts_ls
+)
+
+if("netcdf" IN_LIST FEATURES)
+    list(APPEND _eccodes_tool_names grib_to_netcdf)
+endif()
+
+vcpkg_copy_tools(
+    TOOL_NAMES ${_eccodes_tool_names}
+    AUTO_CLEAN
+)
+
+foreach(_script IN ITEMS codes_config bufr_compare_dir bufr_filter)
+    if(EXISTS "${CURRENT_PACKAGES_DIR}/bin/${_script}")
+        file(MAKE_DIRECTORY "${CURRENT_PACKAGES_DIR}/tools/${PORT}")
+        file(RENAME
+            "${CURRENT_PACKAGES_DIR}/bin/${_script}"
+            "${CURRENT_PACKAGES_DIR}/tools/${PORT}/${_script}"
+        )
     endif()
 
-    file(GLOB _entries "${bin_dir}/*")
-    foreach(_entry IN LISTS _entries)
-        if(IS_DIRECTORY "${_entry}")
-            continue()
-        endif()
+    if(EXISTS "${CURRENT_PACKAGES_DIR}/debug/bin/${_script}")
+        file(REMOVE "${CURRENT_PACKAGES_DIR}/debug/bin/${_script}")
+    endif()
+endforeach()
 
-        get_filename_component(_name "${_entry}" NAME)
-        if(_name MATCHES [[\.(dll|pdb|so(\..*)?|dylib)$]])
-            continue()
-        endif()
+vcpkg_copy_tool_dependencies("${CURRENT_PACKAGES_DIR}/tools/${PORT}")
 
-        file(MAKE_DIRECTORY "${tools_dir}")
-        file(RENAME "${_entry}" "${tools_dir}/${_name}")
-    endforeach()
-endfunction()
-
-eccodes_move_tools_from_bin("${CURRENT_PACKAGES_DIR}/bin" "${CURRENT_PACKAGES_DIR}/tools/${PORT}")
-eccodes_move_tools_from_bin("${CURRENT_PACKAGES_DIR}/debug/bin" "${CURRENT_PACKAGES_DIR}/tools/${PORT}/debug")
-
+file(REMOVE_RECURSE
+    "${CURRENT_PACKAGES_DIR}/debug/include"
+    "${CURRENT_PACKAGES_DIR}/debug/share"
+    "${CURRENT_PACKAGES_DIR}/share/${PORT}/definitions/metar/stations"
+)
 
 function(eccodes_remove_dir_if_empty dir_path)
     if(NOT IS_DIRECTORY "${dir_path}")
@@ -172,11 +170,6 @@ endfunction()
 
 eccodes_remove_dir_if_empty("${CURRENT_PACKAGES_DIR}/bin")
 eccodes_remove_dir_if_empty("${CURRENT_PACKAGES_DIR}/debug/bin")
-
-file(REMOVE_RECURSE
-    "${CURRENT_PACKAGES_DIR}/debug/include"
-    "${CURRENT_PACKAGES_DIR}/debug/share"
-)
 
 function(eccodes_replace_prefix_in_file file_path from to)
     if(NOT EXISTS "${file_path}")
@@ -226,9 +219,6 @@ set(_eccodes_files_to_scrub
     "${CURRENT_PACKAGES_DIR}/tools/${PORT}/debug/codes_config"
 )
 
-# Upstream installs both release and debug helper scripts named codes_config.
-# Scrub every installed copy so post-build validation does not find build or
-# package paths if a triplet lays them out slightly differently.
 file(GLOB_RECURSE _eccodes_codes_config_files
     "${CURRENT_PACKAGES_DIR}/tools/${PORT}/*codes_config"
 )
@@ -249,33 +239,3 @@ file(INSTALL
     DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
     RENAME copyright
 )
-
-# Installing ecCodes definitions/samples can leave empty data directories on
-# Linux (for example definitions/metar/stations). vcpkg rejects empty installed
-# directories, so remove all of them after every install/post-process step.
-function(eccodes_remove_empty_directories root_dir)
-    if(NOT IS_DIRECTORY "${root_dir}")
-        return()
-    endif()
-
-    foreach(_pass RANGE 1 20)
-        file(GLOB_RECURSE _all_entries LIST_DIRECTORIES true "${root_dir}/*")
-        set(_removed_empty_dir FALSE)
-
-        foreach(_entry IN LISTS _all_entries)
-            if(IS_DIRECTORY "${_entry}")
-                file(GLOB _children "${_entry}/*")
-                if(NOT _children)
-                    file(REMOVE_RECURSE "${_entry}")
-                    set(_removed_empty_dir TRUE)
-                endif()
-            endif()
-        endforeach()
-
-        if(NOT _removed_empty_dir)
-            break()
-        endif()
-    endforeach()
-endfunction()
-
-eccodes_remove_empty_directories("${CURRENT_PACKAGES_DIR}")

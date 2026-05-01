@@ -47,19 +47,11 @@
         "tinyxml2"
       ]
     },
-    "openmp-threads": {
-      "description": "Enable OpenMP thread safety support",
-      "supports": "!osx"
-    },
     "png": {
       "description": "Enable PNG decoding and encoding support",
       "dependencies": [
         "libpng"
       ]
-    },
-    "threads": {
-      "description": "Enable POSIX thread safety support where supported by upstream",
-      "supports": "!windows"
     }
   }
 }
