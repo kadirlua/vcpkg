@@ -127,30 +127,24 @@ if("netcdf" IN_LIST FEATURES)
     list(APPEND _eccodes_tool_names grib_to_netcdf)
 endif()
 
-if(VCPKG_TARGET_IS_WINDOWS)
-    # vcpkg_copy_tools appends the target executable suffix on Windows, so it
-    # cannot copy these extensionless installed scripts there.
-    foreach(_script IN ITEMS bufr_compare_dir bufr_filter codes_config)
-        if(EXISTS "${CURRENT_PACKAGES_DIR}/bin/${_script}")
-            file(COPY "${CURRENT_PACKAGES_DIR}/bin/${_script}"
-                DESTINATION "${CURRENT_PACKAGES_DIR}/tools/${PORT}"
-            )
-            file(REMOVE "${CURRENT_PACKAGES_DIR}/bin/${_script}")
-        endif()
-        file(REMOVE "${CURRENT_PACKAGES_DIR}/debug/bin/${_script}")
-    endforeach()
-else()
-    list(APPEND _eccodes_tool_names
-        bufr_compare_dir
-        bufr_filter
-        codes_config
-    )
-endif()
-
 vcpkg_copy_tools(
     TOOL_NAMES ${_eccodes_tool_names}
     AUTO_CLEAN
 )
+
+foreach(_script IN ITEMS codes_config bufr_compare_dir bufr_filter)
+    if(EXISTS "${CURRENT_PACKAGES_DIR}/bin/${_script}")
+        file(MAKE_DIRECTORY "${CURRENT_PACKAGES_DIR}/tools/${PORT}")
+        file(RENAME
+            "${CURRENT_PACKAGES_DIR}/bin/${_script}"
+            "${CURRENT_PACKAGES_DIR}/tools/${PORT}/${_script}"
+        )
+    endif()
+
+    if(EXISTS "${CURRENT_PACKAGES_DIR}/debug/bin/${_script}")
+        file(REMOVE "${CURRENT_PACKAGES_DIR}/debug/bin/${_script}")
+    endif()
+endforeach()
 
 file(REMOVE_RECURSE
     "${CURRENT_PACKAGES_DIR}/debug/include"
@@ -158,55 +152,9 @@ file(REMOVE_RECURSE
     "${CURRENT_PACKAGES_DIR}/share/${PORT}/definitions/metar/stations"
 )
 
-# ecbuild generates absolute staging paths in multiple installed text files
-# (headers and codes_config). Keep the vcpkg-specific cleanup here instead of
-# carrying a broader upstream patch across several generation points.
-function(eccodes_replace_prefix_in_file file_path from to)
-    if(NOT EXISTS "${file_path}")
-        return()
-    endif()
-
-    file(READ "${file_path}" _content)
-    set(_updated "${_content}")
-    string(REPLACE "${from}" "${to}" _updated "${_updated}")
-    if(NOT _updated STREQUAL _content)
-        file(WRITE "${file_path}" "${_updated}")
-    endif()
-endfunction()
-
-function(eccodes_scrub_vcpkg_paths file_path)
-    if(NOT EXISTS "${file_path}")
-        return()
-    endif()
-
-    set(_prefix_pairs
-        "${CURRENT_PACKAGES_DIR}" "@VCPKG_PACKAGES_DIR@"
-        "${CURRENT_INSTALLED_DIR}" "@VCPKG_INSTALLED_DIR@"
-        "${CURRENT_HOST_INSTALLED_DIR}" "@VCPKG_HOST_INSTALLED_DIR@"
-        "${CURRENT_BUILDTREES_DIR}" "@VCPKG_BUILDTREES_DIR@"
-        "${DOWNLOADS}" "@VCPKG_DOWNLOADS_DIR@"
-    )
-
-    list(LENGTH _prefix_pairs _pair_count)
-    math(EXPR _last_index "${_pair_count} - 1")
-    foreach(_index RANGE 0 ${_last_index} 2)
-        math(EXPR _next_index "${_index} + 1")
-        list(GET _prefix_pairs ${_index} _from)
-        list(GET _prefix_pairs ${_next_index} _to)
-
-        file(TO_CMAKE_PATH "${_from}" _from_cmake)
-        string(REPLACE "/" "\\" _from_native "${_from_cmake}")
-
-        eccodes_replace_prefix_in_file("${file_path}" "${_from_cmake}" "${_to}")
-        eccodes_replace_prefix_in_file("${file_path}" "${_from_native}" "${_to}")
-    endforeach()
-endfunction()
-
 set(_eccodes_files_to_scrub
     "${CURRENT_PACKAGES_DIR}/include/eccodes_config.h"
     "${CURRENT_PACKAGES_DIR}/include/eccodes_ecbuild_config.h"
-    "${CURRENT_PACKAGES_DIR}/tools/${PORT}/codes_config"
-    "${CURRENT_PACKAGES_DIR}/tools/${PORT}/debug/codes_config"
 )
 
 file(GLOB_RECURSE _eccodes_codes_config_files
@@ -215,8 +163,29 @@ file(GLOB_RECURSE _eccodes_codes_config_files
 list(APPEND _eccodes_files_to_scrub ${_eccodes_codes_config_files})
 list(REMOVE_DUPLICATES _eccodes_files_to_scrub)
 
+set(_eccodes_prefix_pairs
+    "${CURRENT_PACKAGES_DIR}" "@VCPKG_PACKAGES_DIR@"
+    "${CURRENT_INSTALLED_DIR}" "@VCPKG_INSTALLED_DIR@"
+    "${CURRENT_HOST_INSTALLED_DIR}" "@VCPKG_HOST_INSTALLED_DIR@"
+    "${CURRENT_BUILDTREES_DIR}" "@VCPKG_BUILDTREES_DIR@"
+    "${DOWNLOADS}" "@VCPKG_DOWNLOADS_DIR@"
+)
+
 foreach(_file IN LISTS _eccodes_files_to_scrub)
-    eccodes_scrub_vcpkg_paths("${_file}")
+    if(EXISTS "${_file}")
+        list(LENGTH _eccodes_prefix_pairs _eccodes_prefix_pair_count)
+        math(EXPR _eccodes_prefix_last_index "${_eccodes_prefix_pair_count} - 1")
+        foreach(_index RANGE 0 ${_eccodes_prefix_last_index} 2)
+            math(EXPR _next_index "${_index} + 1")
+            list(GET _eccodes_prefix_pairs ${_index} _from)
+            list(GET _eccodes_prefix_pairs ${_next_index} _to)
+
+            file(TO_CMAKE_PATH "${_from}" _from_cmake)
+            string(REPLACE "/" "\\" _from_native "${_from_cmake}")
+            vcpkg_replace_string("${_file}" "${_from_cmake}" "${_to}" IGNORE_UNCHANGED)
+            vcpkg_replace_string("${_file}" "${_from_native}" "${_to}" IGNORE_UNCHANGED)
+        endforeach()
+    endif()
 endforeach()
 
 vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")
