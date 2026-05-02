@@ -25,7 +25,8 @@ vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
         netcdf ENABLE_NETCDF
         png ENABLE_PNG
     INVERTED_FEATURES
-        netcdf CMAKE_DISABLE_FIND_PACKAGE_netcdf
+        netcdf CMAKE_DISABLE_FIND_PACKAGE_NetCDF
+        png CMAKE_DISABLE_FIND_PACKAGE_PNG
 )
 
 if(VCPKG_TARGET_IS_WINDOWS)
@@ -56,14 +57,6 @@ set(ECCODES_OPTIONS
 
 if(NOT "aec" IN_LIST FEATURES AND NOT "netcdf" IN_LIST FEATURES)
     list(APPEND ECCODES_OPTIONS -DCMAKE_DISABLE_FIND_PACKAGE_libaec=ON)
-endif()
-
-if(NOT "netcdf" IN_LIST FEATURES)
-    list(APPEND ECCODES_OPTIONS -DCMAKE_DISABLE_FIND_PACKAGE_NetCDF=ON)
-endif()
-
-if(NOT "png" IN_LIST FEATURES)
-    list(APPEND ECCODES_OPTIONS -DCMAKE_DISABLE_FIND_PACKAGE_PNG=ON)
 endif()
 
 # ecCodes uses try_run() for IEEE endianness probes. Those cannot execute when
@@ -134,26 +127,30 @@ if("netcdf" IN_LIST FEATURES)
     list(APPEND _eccodes_tool_names grib_to_netcdf)
 endif()
 
+if(VCPKG_TARGET_IS_WINDOWS)
+    # vcpkg_copy_tools appends the target executable suffix on Windows, so it
+    # cannot copy these extensionless installed scripts there.
+    foreach(_script IN ITEMS bufr_compare_dir bufr_filter codes_config)
+        if(EXISTS "${CURRENT_PACKAGES_DIR}/bin/${_script}")
+            file(COPY "${CURRENT_PACKAGES_DIR}/bin/${_script}"
+                DESTINATION "${CURRENT_PACKAGES_DIR}/tools/${PORT}"
+            )
+            file(REMOVE "${CURRENT_PACKAGES_DIR}/bin/${_script}")
+        endif()
+        file(REMOVE "${CURRENT_PACKAGES_DIR}/debug/bin/${_script}")
+    endforeach()
+else()
+    list(APPEND _eccodes_tool_names
+        bufr_compare_dir
+        bufr_filter
+        codes_config
+    )
+endif()
+
 vcpkg_copy_tools(
     TOOL_NAMES ${_eccodes_tool_names}
     AUTO_CLEAN
 )
-
-foreach(_script IN ITEMS codes_config bufr_compare_dir bufr_filter)
-    if(EXISTS "${CURRENT_PACKAGES_DIR}/bin/${_script}")
-        file(MAKE_DIRECTORY "${CURRENT_PACKAGES_DIR}/tools/${PORT}")
-        file(RENAME
-            "${CURRENT_PACKAGES_DIR}/bin/${_script}"
-            "${CURRENT_PACKAGES_DIR}/tools/${PORT}/${_script}"
-        )
-    endif()
-
-    if(EXISTS "${CURRENT_PACKAGES_DIR}/debug/bin/${_script}")
-        file(REMOVE "${CURRENT_PACKAGES_DIR}/debug/bin/${_script}")
-    endif()
-endforeach()
-
-vcpkg_copy_tool_dependencies("${CURRENT_PACKAGES_DIR}/tools/${PORT}")
 
 file(REMOVE_RECURSE
     "${CURRENT_PACKAGES_DIR}/debug/include"
@@ -161,20 +158,9 @@ file(REMOVE_RECURSE
     "${CURRENT_PACKAGES_DIR}/share/${PORT}/definitions/metar/stations"
 )
 
-function(eccodes_remove_dir_if_empty dir_path)
-    if(NOT IS_DIRECTORY "${dir_path}")
-        return()
-    endif()
-
-    file(GLOB _dir_entries "${dir_path}/*")
-    if(NOT _dir_entries)
-        file(REMOVE_RECURSE "${dir_path}")
-    endif()
-endfunction()
-
-eccodes_remove_dir_if_empty("${CURRENT_PACKAGES_DIR}/bin")
-eccodes_remove_dir_if_empty("${CURRENT_PACKAGES_DIR}/debug/bin")
-
+# ecbuild generates absolute staging paths in multiple installed text files
+# (headers and codes_config). Keep the vcpkg-specific cleanup here instead of
+# carrying a broader upstream patch across several generation points.
 function(eccodes_replace_prefix_in_file file_path from to)
     if(NOT EXISTS "${file_path}")
         return()
@@ -232,11 +218,6 @@ list(REMOVE_DUPLICATES _eccodes_files_to_scrub)
 foreach(_file IN LISTS _eccodes_files_to_scrub)
     eccodes_scrub_vcpkg_paths("${_file}")
 endforeach()
-
-file(INSTALL
-    "${CMAKE_CURRENT_LIST_DIR}/usage"
-    DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
-)
 
 file(INSTALL
     "${SOURCE_PATH}/LICENSE"
