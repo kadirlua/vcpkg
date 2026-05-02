@@ -127,11 +127,6 @@ if("netcdf" IN_LIST FEATURES)
     list(APPEND _eccodes_tool_names grib_to_netcdf)
 endif()
 
-vcpkg_copy_tools(
-    TOOL_NAMES ${_eccodes_tool_names}
-    AUTO_CLEAN
-)
-
 foreach(_script IN ITEMS codes_config bufr_compare_dir bufr_filter)
     if(EXISTS "${CURRENT_PACKAGES_DIR}/bin/${_script}")
         file(MAKE_DIRECTORY "${CURRENT_PACKAGES_DIR}/tools/${PORT}")
@@ -145,6 +140,11 @@ foreach(_script IN ITEMS codes_config bufr_compare_dir bufr_filter)
         file(REMOVE "${CURRENT_PACKAGES_DIR}/debug/bin/${_script}")
     endif()
 endforeach()
+
+vcpkg_copy_tools(
+    TOOL_NAMES ${_eccodes_tool_names}
+    AUTO_CLEAN
+)
 
 file(REMOVE_RECURSE
     "${CURRENT_PACKAGES_DIR}/debug/include"
