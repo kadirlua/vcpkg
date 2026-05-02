@@ -219,8 +219,4 @@ foreach(_file IN LISTS _eccodes_files_to_scrub)
     eccodes_scrub_vcpkg_paths("${_file}")
 endforeach()
 
-file(INSTALL
-    "${SOURCE_PATH}/LICENSE"
-    DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
-    RENAME copyright
-)
+vcpkg_install_copyright(FILE_LIST "${SOURCE_PATH}/LICENSE")
