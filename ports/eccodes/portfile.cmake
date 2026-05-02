@@ -24,6 +24,8 @@ vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
         fortran ENABLE_FORTRAN
         netcdf ENABLE_NETCDF
         png ENABLE_PNG
+    INVERTED_FEATURES
+        netcdf CMAKE_DISABLE_FIND_PACKAGE_netcdf
 )
 
 if(VCPKG_TARGET_IS_WINDOWS)
