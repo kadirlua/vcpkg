@@ -11,6 +11,7 @@ vcpkg_from_github(
 file(COPY
     "${SOURCE_PATH}/cmake"
     DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
+    PATTERN "Find*.cmake" EXCLUDE
 )
 
 file(COPY

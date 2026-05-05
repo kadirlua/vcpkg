@@ -38,14 +38,7 @@
     "netcdf": {
       "description": "Enable grib_to_netcdf and NetCDF support",
       "dependencies": [
-        {
-          "name": "curl",
-          "default-features": false
-        },
-        "hdf5",
-        "libaec",
-        "netcdf-c",
-        "tinyxml2"
+        "netcdf-c"
       ]
     },
     "png": {
