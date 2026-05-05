@@ -1,24 +1,31 @@
 diff --git a/tools/CMakeLists.txt b/tools/CMakeLists.txt
-index d0eb320..e9682ad 100644
+index d0eb320..e638dc2 100644
 --- a/tools/CMakeLists.txt
 +++ b/tools/CMakeLists.txt
-@@ -75,10 +75,18 @@ ecbuild_add_executable( TARGET     gts_count
+@@ -75,10 +75,25 @@ ecbuild_add_executable( TARGET     gts_count
                          LIBS       ecc_tools )
  
  # grib to netcdf is optional
 +set( eccodes_grib_to_netcdf_libs )
 +if( HAVE_NETCDF )
-+  find_package(netCDF CONFIG REQUIRED)
++  find_package( HDF5 COMPONENTS C HL REQUIRED )
++  find_package( tinyxml2 CONFIG REQUIRED )
++  find_package( CURL REQUIRED )
++  find_package( libaec CONFIG REQUIRED )
 +
 +  list( APPEND eccodes_grib_to_netcdf_libs
-+        netCDF::netcdf )
++        hdf5::hdf5_hl
++        HDF5::HDF5
++        tinyxml2::tinyxml2
++        CURL::libcurl
++        libaec::sz )
 +endif()
 +
  ecbuild_add_executable( TARGET     grib_to_netcdf
                          SOURCES    grib_to_netcdf.cc
                          CONDITION  HAVE_NETCDF
 -                        LIBS       ecc_tools NetCDF::NetCDF_C )
-+                        LIBS       ecc_tools NetCDF::NetCDF_C ${eccodes_grib_to_netcdf_libs})
++                        LIBS       ecc_tools NetCDF::NetCDF_C ${eccodes_grib_to_netcdf_libs} )
  
  
  ecbuild_add_executable( TARGET     grib_list_keys
