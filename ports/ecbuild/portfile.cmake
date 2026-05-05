@@ -11,6 +11,7 @@ vcpkg_from_github(
 file(COPY
     "${SOURCE_PATH}/cmake"
     DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
+    PATTERN "Find*.cmake" EXCLUDE
 )
 
 file(COPY
@@ -35,8 +36,7 @@ file(INSTALL
     DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
 )
 
-file(INSTALL
+vcpkg_install_copyright(FILE_LIST
     "${SOURCE_PATH}/LICENSE"
-    DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"
-    RENAME copyright
+    "${SOURCE_PATH}/NOTICE"
 )
